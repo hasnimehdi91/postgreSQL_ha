@@ -1,0 +1,49 @@
+# code: language=ansible
+
+# ------------------------------------------------------------------------------
+# Copy Consul Configuration Files
+# ------------------------------------------------------------------------------
+# This task copies static configuration files required to initialize the Consul agent.
+# These configurations enable Consul to operate securely and in coordination with other nodes.
+#
+# Files included:
+#   - `server.hcl`: Core agent configuration (datacenter, addresses, ports, etc.)
+#   - `tls.hcl`: TLS parameters for encrypted gossip and HTTPS API communication
+#
+# Source:
+#   - Local directory: `files/consul/`
+#
+# Destination:
+#   - Target configuration path mounted into the Consul container
+#
+# Permissions:
+#   - All files are copied with mode `0644` for readability inside the container
+- name: Copy consul configuration
+  copy:
+    src: "{{ current_dir }}/files/consul/{{ item }}"
+    dest: "{{ consul_config_path }}/{{ item }}"
+    mode: "0644"
+  loop:
+  - "server.hcl"
+  - "tls.hcl"
+
+# ------------------------------------------------------------------------------
+# Copy Consul Container Dockerfile
+# ------------------------------------------------------------------------------
+# This task copies the Dockerfile used to build the custom Consul container image.
+# The Dockerfile defines runtime behaviors, installs the Consul binary, and
+# enforces best practices such as non-root execution and TLS support.
+#
+# Source:
+#   - Local path: `files/containers/Dockerfile.consul`
+#
+# Destination:
+#   - Output location within the containers directory used by the stack
+#
+# Permissions:
+#   - The file is copied with mode `0644` for build context usage
+- name: Copy consul docker file
+  copy:
+    src: "{{ current_dir }}/files/containers/Dockerfile.consul"
+    dest: "{{ containers_dir }}/Dockerfile.consul"
+    mode: "0644"

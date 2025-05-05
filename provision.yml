@@ -1,0 +1,98 @@
+# code: language=ansible
+
+# ------------------------------------------------------------------------------
+# Provision PostgreSQL High Availability (HA) Environment Services
+# ------------------------------------------------------------------------------
+#
+# Description:
+#   This playbook orchestrates the provisioning of the PostgreSQL HA stack,
+#   including supporting services like Consul and TLS infrastructure.
+#   It prepares the environment by loading essential variables and executing
+#   pre-configuration tasks such as certificate and secret generation.
+#
+# Execution Context:
+#   - Hosts: localhost (executed locally)
+#   - Connection: Local (no remote host required)
+#   - Privilege Escalation: Disabled (become: false)
+#   - Fact Gathering: Enabled
+#   - Error Handling: Fails immediately on any task error
+# ------------------------------------------------------------------------------
+
+- name: Provision PostgreSQL High Availability (HA) environment services
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: true
+  any_errors_fatal: yes
+
+  # ----------------------------------------------------------------------------
+  # Pre-Tasks: Environment Initialization
+  # ----------------------------------------------------------------------------
+  pre_tasks:
+
+  # --------------------------------------------------------------------------
+  # Load PostgreSQL HA Configuration Variables
+  # --------------------------------------------------------------------------
+  # Loads main configuration variables required by the HA setup process.
+  # These include paths for volumes, sensitive directories, credentials,
+  # certificate locations, and container configurations.
+  - include_vars:
+      file: "./vars/main.yml"
+
+  # ----------------------------------------------------------------------------
+  # Setup Required Secrets and Certificates
+  # ----------------------------------------------------------------------------
+  # Executes critical security preparation tasks including:
+  # - Generating the root CA (only if it does not already exist)
+  # - Creating and signing TLS certificates for individual services (e.g., Consul)
+  # - Initializing sensitive directory structures for certificate storage
+  #
+  # This step is conditionally skipped when the stack is being stopped or destroyed
+  # to avoid regenerating or overwriting existing secrets unnecessarily.
+  - include_tasks:
+      file: "{{ current_dir }}/tasks/security/setup_required_secrets.yml"
+    when: not (stack_state == 'stopped' or stack_state == 'absent')
+
+  # ----------------------------------------------------------------------------
+  # Setup Cluster Configuration for HA Stack
+  # ----------------------------------------------------------------------------
+  # Includes tasks responsible for preparing service configuration files such as:
+  # - Static HCL configuration for Consul
+  # - Environment files or configuration templates for PostgreSQL nodes
+  #
+  # These configuration files are essential for runtime behavior and coordination
+  # between HA components, and are applied only when provisioning or updating the stack.
+  - include_tasks:
+      file: "{{ current_dir }}/tasks/configuration/setup_cluster_configuration.yml"
+    when: not (stack_state == 'stopped' or stack_state == 'absent')
+
+  tasks:
+
+  # ------------------------------------------------------------------------------
+  # Manage High Availability (HA) Cluster via Docker Compose
+  # ------------------------------------------------------------------------------
+  # This task manages the lifecycle of the HA container stack using Docker Compose v2.
+  # It supports bringing up, stopping, or tearing down the entire environment based on `stack_state`.
+  #
+  # Features:
+  #   - `project_src`: Points to the directory containing the generated `compose.yml`
+  #   - `build: always`: Rebuilds service images to ensure latest configuration is applied
+  #   - `remove_orphans: true`: Removes services not defined in the current stack
+  #   - `remove_volumes: true`: Deletes volumes when state is `absent`
+  #   - `remove_images: local`: Deletes local images when tearing down
+  #   - `recreate: always`: Forces recreation of containers regardless of existing state
+  #
+  # The task tolerates errors during stop or destroy operations by setting `ignore_errors`
+  # dynamically when the stack is being stopped or removed.
+  # ------------------------------------------------------------------------------
+  - name: Manage HA cluster
+    community.docker.docker_compose_v2:
+      project_src: "{{ containers_dir }}/"
+      build: always
+      remove_orphans: true
+      remove_volumes: true
+      state: "{{ stack_state }}"
+      remove_images: local
+      recreate: always
+    ignore_errors: "{{ true if (stack_state == 'stopped' or stack_state == 'absent') else false }}"
+

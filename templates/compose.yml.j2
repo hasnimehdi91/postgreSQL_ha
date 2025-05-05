@@ -1,0 +1,25 @@
+services:
+  postgres_ha_consul:
+    container_name: postgres_ha_consul
+    build:
+      context: ./
+      dockerfile: ./Dockerfile.consul
+    ports:
+      - "127.0.0.1:8500:8500"
+      - "127.0.0.1:8300:8300"
+      - "127.0.0.1:8301:8301"
+      - "127.0.0.1:8301:8301/udp"
+      - "127.0.0.1:8302:8302"
+      - "127.0.0.1:8302:8302/udp"
+    volumes:
+      - postgres_ha_consul_data:/consul_data
+      - "{{ consul_config_path }}:/consul_configuration/:ro"
+      - "{{ consul_certs_path }}:/consul_certs/:ro"
+    networks:
+      - postgres_ha_network
+
+volumes:
+  postgres_ha_consul_data:
+
+networks:
+  postgres_ha_network:

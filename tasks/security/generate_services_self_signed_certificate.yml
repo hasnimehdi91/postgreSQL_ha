@@ -1,0 +1,72 @@
+# code: language=ansible
+
+# ------------------------------------------------------------------------------
+# Generate Private Key
+# ------------------------------------------------------------------------------
+# Creates a 4096-bit RSA private key in PKCS#8 format.
+# This key will be used to generate a CSR and sign the final certificate.
+# The key is saved in the sensitive directory using the service-specific certificate name.
+- name: Generate private key
+  community.crypto.openssl_privatekey:
+    path: "{{ sensitive_directory }}/{{ certificate_name }}.key"
+    size: 4096
+    type: RSA
+    format: pkcs8
+    state: present
+    force: true
+    return_content: true
+
+# ------------------------------------------------------------------------------
+# Generate Certificate Signing Request (CSR)
+# ------------------------------------------------------------------------------
+# Creates a CSR using the previously generated private key.
+# The CSR includes subject details and usage constraints appropriate for a secure
+# service certificate with both server and client authentication enabled.
+# Subject Alternative Names (SAN) are specified for localhost use.
+- name: Generate CSR
+  community.crypto.openssl_csr:
+    path: "{{ sensitive_directory }}/{{ certificate_name }}.csr"
+    privatekey_path: "{{ sensitive_directory }}/{{ certificate_name }}.key"
+    digest: sha512
+    country_name: TN
+    state_or_province_name: Sousse
+    organization_name: Dummy Company Name Inc.
+    organizational_unit_name: Database administration
+    common_name: server.dc1.consul
+    email_address: hasnimehdi@outlook.com
+    subject_alt_name:
+    - DNS:server.dc1.consul
+    - DNS:localhost
+    - IP:127.0.0.1
+    basic_constraints:
+    - CA:FALSE
+    key_usage:
+    - digitalSignature
+    - keyEncipherment
+    - dataEncipherment
+    extended_key_usage:
+    - serverAuth
+    - clientAuth
+    state: present
+    return_content: true
+
+# ------------------------------------------------------------------------------
+# Generate Self-Signed Certificate
+# ------------------------------------------------------------------------------
+# Signs the CSR using the Root CA to issue a service certificate.
+# This certificate will be valid for 1 year and supports mutual TLS (mTLS) use cases.
+# The result is stored in the sensitive directory under a .crt file.
+- name: Generate certificate
+  community.crypto.x509_certificate:
+    path: "{{ sensitive_directory }}/{{ certificate_name }}.crt"
+    privatekey_path: "{{ sensitive_directory }}/{{ certificate_name }}.key"
+    csr_path: "{{ sensitive_directory }}/{{ certificate_name }}.csr"
+    ownca_path: "{{ ca_cert_path }}"
+    ownca_privatekey_path: "{{ ca_key_path }}"
+    ownca_not_after: +365d
+    ownca_not_before: +0s
+    ownca_digest: sha512
+    provider: ownca
+    state: present
+    return_content: true
+  register: certificate_content

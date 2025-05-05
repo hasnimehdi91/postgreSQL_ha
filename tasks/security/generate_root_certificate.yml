@@ -1,0 +1,97 @@
+# code: language=ansible
+
+# ------------------------------------------------------------------------------
+# Check for Existing Root CA Certificate
+# ------------------------------------------------------------------------------
+# This task verifies whether the root Certificate Authority (CA) certificate already exists.
+# It prevents unnecessary regeneration of the CA by checking the expected certificate file path.
+- name: Check if root CA certificate exists
+  stat:
+    path: "{{ ca_cert_path }}"
+  register: root_ca_stat
+
+# ------------------------------------------------------------------------------
+# Check for Existing Root CA Private Key
+# ------------------------------------------------------------------------------
+# This task checks for the existence of the root CA private key on disk.
+# The private key is required to sign the CA certificate and all subordinate service certificates.
+- name: Check if root CA private key exists
+  stat:
+    path: "{{ ca_key_path }}"
+  register: root_ca_key_stat
+
+# ------------------------------------------------------------------------------
+# Determine Whether CA Generation Should Be Skipped
+# ------------------------------------------------------------------------------
+# Based on the results of the previous stat checks, this task sets a Boolean flag `skip_ca`.
+# If both the certificate and key exist, CA generation is skipped during the next block execution.
+- name: Set CA skip flag
+  set_fact:
+    skip_ca: "{{ true if (root_ca_stat.stat.exists and root_ca_key_stat.stat.exists) else false }}"
+
+# ------------------------------------------------------------------------------
+# Conditionally Generate Root Certificate Authority (CA)
+# ------------------------------------------------------------------------------
+# This block only runs if either the CA certificate or private key is missing.
+# It performs the complete sequence to initialize a self-signed root CA:
+# - Generates a 4096-bit private key
+# - Generates a Certificate Signing Request (CSR)
+# - Signs the CSR to create the root CA certificate
+- name: Generate Root Certificate Authority (CA)
+  block:
+
+    # --------------------------------------------------------------------------
+    # Generate RSA Private Key for CA
+    # --------------------------------------------------------------------------
+    # Creates a 4096-bit RSA private key in PKCS#8 format.
+    # This key is the basis for the root CA and used for signing all issued certificates.
+    - name: Generate RSA CA private key
+      community.crypto.openssl_privatekey:
+        path: "{{ ca_key_path }}"
+        type: RSA
+        size: 4096
+        format: pkcs8
+        state: present
+        force: true
+
+    # --------------------------------------------------------------------------
+    # Generate Certificate Signing Request (CSR) for CA
+    # --------------------------------------------------------------------------
+    # Constructs a CSR from the private key, embedding subject and usage attributes.
+    # This is the request to self-sign the CA certificate, defining its identity and scope.
+    - name: Generate RSA CA CSR
+      community.crypto.openssl_csr:
+        path: "{{ ca_csr_path }}"
+        privatekey_path: "{{ ca_key_path }}"
+        digest: sha512
+        country_name: TN
+        state_or_province_name: Sousse
+        organization_name: Dummy Company Name Inc.
+        organizational_unit_name: Infrastructure
+        common_name: Dummy Company Name CA
+        basic_constraints:
+          - CA:TRUE
+        key_usage:
+          - keyCertSign
+          - cRLSign
+        state: present
+        return_content: true
+
+    # --------------------------------------------------------------------------
+    # Self-Sign the CA Certificate
+    # --------------------------------------------------------------------------
+    # Issues the root CA certificate by signing the CSR with the private key.
+    # The certificate is valid for 10 years and forms the trust anchor for all other issued certificates.
+    - name: Generate self-signed CA certificate from CSR
+      community.crypto.x509_certificate:
+        path: "{{ ca_cert_path }}"
+        csr_path: "{{ ca_csr_path }}"
+        privatekey_path: "{{ ca_key_path }}"
+        provider: selfsigned
+        selfsigned_not_after: +3650d
+        selfsigned_not_before: +0s
+        selfsigned_digest: sha512
+        state: present
+        return_content: true
+
+  when: not (skip_ca | default(false))

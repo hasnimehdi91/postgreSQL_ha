@@ -1,0 +1,22 @@
+# Ignore JetBrains IDE project and vscode at any depth files
+# These are IDE-specific configuration files that should not be in version control.
+**/.idea
+**/.vscode
+
+# Ignore all .env files in any directory.
+# These files typically store environment variables and secrets.
+**/.env
+
+# Ignore all virtual environment directories (.venv) in any location.
+# These directories contain Python dependencies and should not be committed.
+**/*.venv
+
+# Ignore all files with the `.local` extension in any directory.
+# Commonly used for local configuration files that should not be shared.
+**/*.local
+
+# Ignore all directories named 'sensitive' at any depth to exclude confidential or secure content from version control.
+**/sensitive
+
+# Ignore all directories named '.history' at any depth to exclude bash command history.
+**/.history

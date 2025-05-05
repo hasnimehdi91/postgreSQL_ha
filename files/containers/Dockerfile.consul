@@ -1,0 +1,82 @@
+# ------------------------------------------------------------------------------
+# Dockerfile: Consul Agent (Non-root, HA-Ready)
+# ------------------------------------------------------------------------------
+#
+# Base Image:
+#   - Rocky Linux 9.3 Minimal
+#
+# Purpose:
+#   - Builds a secure, non-root container image for running HashiCorp Consul
+#   - Intended for use as the DCS (Distributed Configuration Store) with Patroni
+#
+# Features:
+#   - Installs Consul from HashiCorp's official YUM repository
+#   - Creates a dedicated non-root user (`consul`)
+#   - Prepares config and data directories with secure permissions
+#
+# Ports:
+#   - 8500: HTTP API and web UI
+#   - 8300: Server RPC
+#   - 8301 (TCP/UDP): LAN gossip
+#   - 8302 (TCP/UDP): WAN gossip
+# ------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
+# Base Image
+# ------------------------------------------------------------------------------
+FROM rockylinux:9.3.20231119-minimal
+
+# ------------------------------------------------------------------------------
+# Exposed Ports
+# ------------------------------------------------------------------------------
+# Consul uses the following ports for internal communication and service discovery:
+#
+# 8500      - HTTP API and Web UI
+# 8300      - Server RPC (used only by Consul *servers*)
+# 8301/TCP  - Serf LAN (TCP) for gossip between agents in the same datacenter
+# 8301/UDP  - Serf LAN (UDP) for health check messages within the same datacenter
+# 8302/TCP  - Serf WAN (TCP) for gossip between agents across datacenters
+# 8302/UDP  - Serf WAN (UDP) for health messages across datacenters
+# ------------------------------------------------------------------------------
+EXPOSE 8500
+EXPOSE 8300
+EXPOSE 8301
+EXPOSE 8301/udp
+EXPOSE 8302
+EXPOSE 8302/udp
+
+# ------------------------------------------------------------------------------
+# System Setup & Consul Installation
+# ------------------------------------------------------------------------------
+# - Installs Consul from the official HashiCorp repo
+# - Creates a non-root 'consul' user and group
+# - Prepares necessary runtime directories
+# - Cleans system cache to reduce image size
+RUN microdnf update -y && \
+    microdnf install -y yum-utils shadow-utils && \
+    yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo && \
+    microdnf makecache && \
+    microdnf install -y consul && \
+    rm -rf /var/cache/yum /var/cache/dnf /var/lib/dnf/* /var/log/dnf/* /var/log/yum/* && \
+    mkdir -p /consul_data && \
+    mkdir -p /consul_configuration && \
+    mkdir -p /consul_certs && \
+    chown -R consul:consul /consul_configuration && \
+    chown -R consul:consul /consul_certs && \
+    chown -R consul:consul /consul_data && \
+    chmod -R 750 /consul_data && \
+    chmod -R 644 /consul_configuration && \
+    chmod -R 644 /consul_certs
+
+# ------------------------------------------------------------------------------
+# Runtime Configuration
+# ------------------------------------------------------------------------------
+# Set non-root user and secure working directory
+USER consul
+WORKDIR /consul
+
+# ------------------------------------------------------------------------------
+# Entrypoint
+# ------------------------------------------------------------------------------
+# Starts the Consul agent using mounted config files
+ENTRYPOINT ["/usr/bin/consul", "agent", "-config-dir=/consul_configuration"]

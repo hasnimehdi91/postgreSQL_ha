@@ -1,0 +1,58 @@
+# Defines the root working directory for Ansible execution, dynamically using
+# the current environment path from PWD.
+current_dir: "{{ lookup('pipe', 'pwd') }}"
+
+# Workspace root directory
+# Specifies the base directory for deploying the PostgreSQL High Availability cluster environment.
+# This directory contains all service definitions, configurations, and artifacts required to run the cluster.
+workspace: "{{ current_dir }}/postgres_ha_cluster.local"
+
+# Sensitive directory
+# Stores sensitive files related to the PostgreSQL HA setup, including TLS certificates and private keys.
+# Located within the main workspace directory.
+sensitive_directory: "{{ workspace }}/sensitive"
+
+# CA certificate path
+# Full path to the Root CA certificate used to secure inter-service communication within the PostgreSQL HA cluster.
+ca_cert_path: "{{ sensitive_directory }}/ca.crt"
+
+# CA CSR path
+# Full path to the Certificate Signing Request generated during the creation of the CA certificate.
+# This file is used when issuing new certificates.
+ca_csr_path: "{{ sensitive_directory }}/ca.csr"
+
+# CA private key path
+# Full path to the private key used to sign TLS certificates for PostgreSQL, Consul, and supporting services.
+ca_key_path: "{{ sensitive_directory }}/ca.key"
+
+# Containers directory
+# Directory containing Docker Compose configurations and templates for PostgreSQL nodes, Consul, and HA services.
+containers_dir: "{{ workspace }}/containers"
+
+# Containers volume directory
+# Directory used to persist Docker container volumes for PostgreSQL data, Consul state, and other services.
+# Ensures local data persistence across restarts within the HA environment.
+containers_volume_dir: "{{ workspace }}/volumes"
+
+# Containers environments directory
+# Stores environment variable definitions and secrets for the various services in the HA stack.
+# Allows modular configuration and secret injection into services.
+containers_environments_dir: "{{ workspace }}/environments"
+
+# Local files directory
+# Used to store generated or downloaded files needed at runtime, including temporary artifacts,
+# service discovery files, or credential templates.
+local_files_dir: "{{ sensitive_directory }}/files"
+
+# Database credentials write path
+# Path to the YAML file containing database credentials (e.g., superuser, replication user).
+# This file is used during the PostgreSQL provisioning process and stored securely.
+database_credentials_write_path: "{{ local_files_dir }}/database_credentials.yml"
+
+# Services state
+# Controls the desired state of the Docker Compose stack used to run the PostgreSQL HA environment.
+# Accepted values:
+# - present: Brings up the entire HA stack (PostgreSQL, Consul, etc.).
+# - absent: Tears down the stack and removes all running services.
+# - stopped: Stops all running services in the HA stack without removing them, allowing later restart.
+stack_state: ""

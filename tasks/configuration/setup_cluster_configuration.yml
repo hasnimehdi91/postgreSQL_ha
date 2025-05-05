@@ -1,0 +1,54 @@
+# code: language=ansible
+
+# ------------------------------------------------------------------------------
+# Create Containers Directory
+# ------------------------------------------------------------------------------
+# This task ensures that the directory used to store container-related files exists.
+#
+# Purpose:
+#   - Hosts service-specific Dockerfiles, compose files, and build contexts
+#   - Acts as the root directory for container orchestration with Docker Compose
+#
+# The directory is created recursively to ensure all parent folders are present.
+- name: Create containers directory
+  file:
+    path: "{{ containers_dir }}"
+    state: directory
+    recurse: true
+
+# ------------------------------------------------------------------------------
+# Setup Consul Configuration
+# ------------------------------------------------------------------------------
+# This task includes the full sequence required to prepare Consul's configuration
+# environment inside the HA container stack.
+#
+# It performs the following:
+#   - Copies HCL configuration files (`acl.hcl`, `server.hcl`, `tls.hcl`)
+#   - Copies the custom Dockerfile for building the Consul container
+#   - Ensures proper file structure and permissions are applied
+#
+# These configurations enable secure and consistent Consul operation for service discovery
+# and cluster coordination.
+- include_tasks:
+    file: "{{ current_dir }}/tasks/configuration/setup_consul_configuration.yml"
+
+# ------------------------------------------------------------------------------
+# Generate Docker Compose Definition File
+# ------------------------------------------------------------------------------
+# This task renders the Docker Compose file using a Jinja2 template.
+#
+# The resulting `compose.yml` defines:
+#   - All HA components such as PostgreSQL instances, Consul agents, and supporting services
+#   - Runtime options like volume paths, network definitions, image sources, and TLS mounts
+#
+# Template Substitution:
+#   - Dynamically injects values defined in `main.yml` and other variable files
+#   - Supports both development and production environments
+#
+# The rendered file is stored in the containers directory and used for orchestration
+# via the `community.docker.docker_compose_v2` module or CLI tools.
+- name: Generate docker compose file
+  template:
+    src: "{{ current_dir }}/templates/compose.yml.j2"
+    dest: "{{ containers_dir }}/compose.yml"
+    mode: "0644"
