@@ -1,7 +1,13 @@
-verify_incoming          = true
-verify_outgoing          = true
-verify_server_hostname   = true
+tls {
+    defaults {
+        ca_file            = "/consul_certs/ca.crt"
+        cert_file          = "/consul_certs/consul.crt"
+        key_file           = "/consul_certs/consul.key"
+        verify_incoming    = false
+        verify_outgoing    = true
+    }
 
-ca_file   = "/consul_certs/ca.crt"
-cert_file = "/consul_certs/consul.crt"
-key_file  = "/consul_certs/consul.key"
+    internal_rpc {
+        verify_server_hostname = true
+    }
+}
