@@ -1,25 +1,40 @@
 services:
-  postgres_ha_consul:
-    container_name: postgres_ha_consul
+{% for i in range(1, (consul_cluster_replica_count | default(3)) + 1) %}
+  postgres_ha_consul_{{ i }}:
+    container_name: "postgres_ha_consul_{{ i }}"
     build:
       context: ./
       dockerfile: ./Dockerfile.consul
-    ports:
-      - "127.0.0.1:8500:8500"
-      - "127.0.0.1:8300:8300"
-      - "127.0.0.1:8301:8301"
-      - "127.0.0.1:8301:8301/udp"
-      - "127.0.0.1:8302:8302"
-      - "127.0.0.1:8302:8302/udp"
     volumes:
-      - postgres_ha_consul_data:/consul_data
-      - "{{ consul_config_path }}:/consul_configuration/:ro"
-      - "{{ consul_certs_path }}:/consul_certs/:ro"
+      - "postgres_ha_consul_data_{{ i }}:/consul_data"
+      - "{{ consul_config_path }}/server_{{ i }}:/consul_configuration/:ro"
+      - "{{ consul_certs_path }}/server_{{ i }}:/consul_certs/:ro"
     networks:
-      - postgres_ha_network
+    - postgres_ha_network
+    restart: on-failure
+
+{% endfor %}
+
+  postgres_ha_load_balancer:
+    image: haproxy:2.7
+    container_name: postgres_ha_load_balancer
+    ports:
+    - "127.0.0.1:8500:8500"
+    volumes:
+      - "{{ haproxy_config_path }}/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
+      - "{{ haproxy_certs_path }}/:/certs/:ro"
+    depends_on:
+{% for i in range(1, (consul_cluster_replica_count | default(3)) + 1) %}
+    - "postgres_ha_consul_{{ i }}"
+{% endfor %}
+    networks:
+    - postgres_ha_network
+    restart: on-failure
 
 volumes:
-  postgres_ha_consul_data:
+{% for i in range(1, (consul_cluster_replica_count | default(3)) + 1) %}
+  postgres_ha_consul_data_{{ i }}:
+{% endfor %}
 
 networks:
   postgres_ha_network:

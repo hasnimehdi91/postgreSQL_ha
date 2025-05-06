@@ -32,12 +32,9 @@
     state_or_province_name: Sousse
     organization_name: Dummy Company Name Inc.
     organizational_unit_name: Database administration
-    common_name: server.dc1.consul
+    common_name: "{{ certificate_common_name }}"
     email_address: hasnimehdi@outlook.com
-    subject_alt_name:
-    - DNS:server.dc1.consul
-    - DNS:localhost
-    - IP:127.0.0.1
+    subject_alt_name: "{{ certificate_subject_alt_name }}"
     basic_constraints:
     - CA:FALSE
     key_usage:

@@ -20,17 +20,31 @@
 # Setup Consul Configuration
 # ------------------------------------------------------------------------------
 # This task includes the full sequence required to prepare Consul's configuration
-# environment inside the HA container stack.
+# environment within the high-availability (HA) container stack.
 #
 # It performs the following:
-#   - Copies HCL configuration files (`acl.hcl`, `server.hcl`, `tls.hcl`)
-#   - Copies the custom Dockerfile for building the Consul container
-#   - Ensures proper file structure and permissions are applied
+#   - Copies all required Consul HCL configuration files (e.g., server.hcl, tls.hcl, acl.hcl)
+#   - Copies the custom Dockerfile used to build the Consul container
+#   - Ensures the configuration directory structure and file permissions are correct
 #
-# These configurations enable secure and consistent Consul operation for service discovery
-# and cluster coordination.
+# These configurations enable secure and consistent Consul operation across all nodes,
+# supporting service discovery and cluster coordination within the HA architecture.
 - include_tasks:
     file: "{{ current_dir }}/tasks/configuration/setup_consul_configuration.yml"
+
+# ------------------------------------------------------------------------------
+# Setup HAProxy Configuration
+# ------------------------------------------------------------------------------
+# This task prepares the HAProxy reverse proxy/load balancer configuration
+# within the container stack environment. It includes:
+#   - Rendering and copying the HAProxy configuration file (haproxy.cfg)
+#   - Copying the custom Dockerfile used to build the HAProxy container
+#   - Ensuring that all required directories exist and are populated correctly
+#
+# This configuration ensures that Consul's UI and HTTP API are load-balanced
+# and accessible through a single frontend regardless of the backend server state.
+- include_tasks:
+    file: "{{ current_dir }}/tasks/configuration/setup_haproxy_configuration.yml"
 
 # ------------------------------------------------------------------------------
 # Generate Docker Compose Definition File

@@ -1,0 +1,26 @@
+# code: language=ansible
+
+# ------------------------------------------------------------------------------
+# Create HAProxy Configuration Directory
+# ------------------------------------------------------------------------------
+# Ensures that the HAProxy configuration directory exists on the host filesystem.
+# This directory will be used to store the generated HAProxy configuration files.
+# The 'recurse' option ensures that all intermediate directories are created if needed.
+- name: Create haproxy volumes
+  file:
+    path: "{{ haproxy_config_path }}"
+    state: directory
+    recurse: true
+
+# ------------------------------------------------------------------------------
+# Copy HAProxy Configuration File
+# ------------------------------------------------------------------------------
+# Renders and copies the HAProxy configuration template (`haproxy.cfg`) into the
+# designated configuration directory on the host. This file is used by the HAProxy
+# container to load frontend/backend definitions for proxying traffic to Consul nodes.
+- name: Copy haproxy configuration
+  template:
+    src: "{{ current_dir }}/templates/haproxy/haproxy.cfg"
+    dest: "{{ haproxy_config_path }}/haproxy.cfg"
+    mode: "0644"
+

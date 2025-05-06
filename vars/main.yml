@@ -56,3 +56,11 @@ database_credentials_write_path: "{{ local_files_dir }}/database_credentials.yml
 # - absent: Tears down the stack and removes all running services.
 # - stopped: Stops all running services in the HA stack without removing them, allowing later restart.
 stack_state: ""
+
+# Consul cluster replica count
+# Defines the number of Consul server nodes to deploy in the high-availability cluster.
+# This value determines:
+# - The number of Consul containers started
+# - The value of `bootstrap_expect` in each server's configuration
+# - The peers used in retry_join for clustering
+consul_cluster_replica_count: 3

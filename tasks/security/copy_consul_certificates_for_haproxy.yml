@@ -1,0 +1,45 @@
+# code: language=ansible
+
+# ------------------------------------------------------------------------------
+# Set Certificate Name for Consul Node
+# ------------------------------------------------------------------------------
+# Sets the name of the certificate for each Consul node. This variable is used
+# in the following tasks to determine the specific certificate file to be copied
+# to the HAProxy server.
+- set_fact:
+    certificate_name: "consul_node_{{ item }}"
+
+# ------------------------------------------------------------------------------
+# Copy Consul Certificates to HAProxy
+# ------------------------------------------------------------------------------
+# Copies the CA certificate and the node-specific Consul certificate from their
+# respective source locations to the HAProxy certificate directory. These files
+# are used to enable mutual TLS (mTLS) when HAProxy connects to Consul nodes.
+# The permissions are set to allow HAProxy to read the files securely.
+- name: "Copy consul certificates to haproxy"
+  copy:
+    src: "{{ cert_file.src }}"
+    dest: "{{ cert_file.dest }}"
+    mode: "0644"
+  loop:
+    - src: "{{ ca_cert_path }}"
+      dest: "{{ haproxy_certs_path }}/consul/ca.crt"
+    - src: "{{ sensitive_directory }}/{{ certificate_name }}.crt"
+      dest: "{{ haproxy_certs_path }}/consul/{{ certificate_name }}.pem"
+  loop_control:
+    loop_var: cert_file
+    label: "{{ cert_file.src }} → {{ cert_file.dest }}"
+
+# ------------------------------------------------------------------------------
+# Append Consul Certificate Private Key to PEM File
+# ------------------------------------------------------------------------------
+# Appends the private key to the copied Consul certificate to form a valid PEM
+# file. This format is required by HAProxy to establish outbound mTLS connections.
+# Each loop iteration executes a shell command that targets the respective certificate.
+- name: "Append consul certificates key to haproxy"
+  shell:
+    cmd: "{{ key_append_command }}"
+  loop:
+    - "cat {{ sensitive_directory }}/{{ certificate_name }}.key >> {{ haproxy_certs_path }}/consul/{{ certificate_name }}.pem"
+  loop_control:
+    loop_var: key_append_command

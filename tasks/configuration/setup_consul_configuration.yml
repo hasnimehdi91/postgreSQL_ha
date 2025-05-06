@@ -1,31 +1,17 @@
 # code: language=ansible
 
 # ------------------------------------------------------------------------------
-# Copy Consul Configuration Files
+# Copy Consul TLS Configuration to Each Node
 # ------------------------------------------------------------------------------
-# This task copies static configuration files required to initialize the Consul agent.
-# These configurations enable Consul to operate securely and in coordination with other nodes.
-#
-# Files included:
-#   - `server.hcl`: Core agent configuration (datacenter, addresses, ports, etc.)
-#   - `tls.hcl`: TLS parameters for encrypted gossip and HTTPS API communication
-#
-# Source:
-#   - Local directory: `files/consul/`
-#
-# Destination:
-#   - Target configuration path mounted into the Consul container
-#
-# Permissions:
-#   - All files are copied with mode `0644` for readability inside the container
+# This task copies the static TLS configuration file (`tls.hcl`) into the configuration
+# directory of each Consul server node. The file defines the parameters required
+# to enable encrypted communication via HTTPS and encrypted gossip using mTLS.
 - name: Copy consul configuration
   copy:
-    src: "{{ current_dir }}/files/consul/{{ item }}"
-    dest: "{{ consul_config_path }}/{{ item }}"
+    src: "{{ current_dir }}/files/consul/tls.hcl"
+    dest: "{{ consul_config_path }}/server_{{ item }}/tls.hcl"
     mode: "0644"
-  loop:
-  - "server.hcl"
-  - "tls.hcl"
+  loop: "{{ range(1, (consul_cluster_replica_count | default(3)) + 1) }}"
 
 # ------------------------------------------------------------------------------
 # Copy Consul Container Dockerfile
@@ -33,15 +19,6 @@
 # This task copies the Dockerfile used to build the custom Consul container image.
 # The Dockerfile defines runtime behaviors, installs the Consul binary, and
 # enforces best practices such as non-root execution and TLS support.
-#
-# Source:
-#   - Local path: `files/containers/Dockerfile.consul`
-#
-# Destination:
-#   - Output location within the containers directory used by the stack
-#
-# Permissions:
-#   - The file is copied with mode `0644` for build context usage
 - name: Copy consul docker file
   copy:
     src: "{{ current_dir }}/files/containers/Dockerfile.consul"

@@ -1,0 +1,66 @@
+# code: language=ansible
+
+# ------------------------------------------------------------------------------
+# Set Certificate Variables for Consul Node
+# ------------------------------------------------------------------------------
+# Defines the certificate name and subject alternative names (SANs) for each
+# Consul server node. These values are used by the TLS certificate generation
+# process to produce a valid self-signed certificate for each individual node.
+- set_fact:
+    certificate_name: "consul_node_{{ item }}"
+    certificate_common_name: postgres_ha_consul_{{ item }}.dc1.consul
+    certificate_subject_alt_name:
+    - "DNS:postgres_ha_consul_{{ item }}.dc1.consul"
+    - DNS:server.dc1.consul
+    - DNS:localhost
+    - IP:127.0.0.1
+  loop_control:
+    loop_var: item
+
+# ------------------------------------------------------------------------------
+# Generate Self-Signed TLS Certificate
+# ------------------------------------------------------------------------------
+# Includes a reusable task file that generates a private key, certificate signing
+# request (CSR), and self-signed certificate using the variables defined above.
+# This enables secure mTLS between Consul servers and clients.
+- include_tasks:
+    file: "{{ current_dir }}/tasks/security/generate_services_self_signed_certificate.yml"
+  loop_control:
+    loop_var: item
+
+# ------------------------------------------------------------------------------
+# Create Certificate Directory for Each Consul Node
+# ------------------------------------------------------------------------------
+# Creates a dedicated directory on disk for each Consul node to store its
+# certificate, key, and CA certificate. The directory path includes the node
+# number to avoid file collisions in multi-node setups.
+- name: "Create consul node {{ item }} certificates volume"
+  file:
+    path: "{{ consul_certs_path }}/server_{{ item }}"
+    state: directory
+    recurse: true
+  loop_control:
+    loop_var: item
+
+# ------------------------------------------------------------------------------
+# Copy TLS Certificates to Consul Node Volume
+# ------------------------------------------------------------------------------
+# Copies the generated certificate, private key, and CA certificate into the
+# appropriate Consul node's volume. The `loop_var` is renamed to `cert_file`
+# to avoid conflicts with outer loops, and the output label shows both the
+# source and destination paths for clarity.
+- name: Copy consul certificates
+  copy:
+    src: "{{ cert_file.src }}"
+    dest: "{{ cert_file.dest }}"
+    mode: "0644"
+  loop:
+  - src: "{{ ca_cert_path }}"
+    dest: "{{ consul_certs_path }}/server_{{ item }}/ca.crt"
+  - src: "{{ sensitive_directory }}/{{ certificate_name }}.key"
+    dest: "{{ consul_certs_path }}/server_{{ item }}/consul.key"
+  - src: "{{ sensitive_directory }}/{{ certificate_name }}.crt"
+    dest: "{{ consul_certs_path }}/server_{{ item }}/consul.crt"
+  loop_control:
+    loop_var: cert_file
+    label: "{{ cert_file.src }} → {{ cert_file.dest }}"
