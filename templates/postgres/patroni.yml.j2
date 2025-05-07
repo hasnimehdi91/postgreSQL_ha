@@ -22,19 +22,19 @@ postgresql:
     data_dir: /var/lib/postgresql/data
     authentication:
         replication:
-            username: replication
-            password: "{{ replication_password }}"
+            username: "{{ replication_user.username }}"
+            password: "{{ replication_user.password }}"
         superuser:
-            username: postgres
-            password: "{{ super_user_password }}"
+            username: "{{ super_user.username }}"
+            password: "{{ super_user.password }}"
         rewind:
-            username: rewind_user
-            password: "{{ rewind_password }}"
+            username: "{{ rewind_user.username }}"
+            password: "{{ rewind_user.password }}"
     parameters:
         shared_buffers: 256MB
         max_connections: 100
     pg_hba:
-    - host replication replication 0.0.0.0/0 trust
+    - host {{ replication_user.username }} {{ replication_user.username }} 0.0.0.0/0 trust
     - host all all 0.0.0.0/0 md5
 
 bootstrap:
@@ -47,14 +47,14 @@ bootstrap:
             use_pg_rewind: true
             authentication:
                 replication:
-                    username: replication
-                    password: "{{ replication_password }}"
+                    username: "{{ replication_user.username }}"
+                    password: "{{ replication_user.password }}"
                 superuser:
-                    username: postgres
-                    password: "{{ super_user_password }}"
+                    username: "{{ super_user.username }}"
+                    password: "{{ super_user.password }}"
                 rewind:
-                    username: rewind_user
-                    password: "{{ rewind_password }}"
+                    username: "{{ rewind_user.username }}"
+                    password: "{{ rewind_user.password }}"
             parameters:
                 wal_level: replica
                 max_wal_senders: 10
@@ -73,12 +73,12 @@ bootstrap:
     - encoding: UTF8
     - locale: en_US.UTF-8
     users:
-        replication:
-            password: "{{ replication_password }}"
+        {{ replication_user.username }}:
+            password: "{{ replication_user.password }}"
             options:
             - replication
-        postgres:
-            password: "{{ super_user_password }}"
+        {{ super_user.username }}:
+            password: "{{ super_user.password }}"
     post_bootstrap: "psql -c 'CREATE DATABASE postgreql_ha_testing_database;'"
 
 tags:

@@ -1,0 +1,13 @@
+# code: language=ansible
+
+# ------------------------------------------------------------------------------
+# Copy PostgreSQL Dockerfile
+# ------------------------------------------------------------------------------
+# Copies the Dockerfile used to build the PostgreSQL 17 container image with
+# Patroni and Consul integration. The Dockerfile is placed in the target
+# container build directory to be used during image build or deployment steps.
+- name: Copy postgres docker file
+  copy:
+    src: "{{ current_dir }}/files/containers/Dockerfile.postgres"
+    dest: "{{ containers_dir }}/Dockerfile.postgres"
+    mode: "0644"

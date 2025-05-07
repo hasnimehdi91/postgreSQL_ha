@@ -33,6 +33,15 @@
     file: "{{ current_dir }}/tasks/configuration/setup_consul_configuration.yml"
 
 # ------------------------------------------------------------------------------
+# Setup PostgreSQL Configuration Artifacts
+# ------------------------------------------------------------------------------
+# Includes a task that prepares necessary configuration or build-related files
+# required for PostgreSQL setup. These may include Dockerfiles, templates,
+# or other supporting assets.
+- include_tasks:
+    file: "{{ current_dir }}/tasks/configuration/setup_postgres_configuration.yml"
+
+# ------------------------------------------------------------------------------
 # Setup HAProxy Configuration
 # ------------------------------------------------------------------------------
 # This task prepares the HAProxy reverse proxy/load balancer configuration

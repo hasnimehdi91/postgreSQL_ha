@@ -15,6 +15,27 @@ services:
 
 {% endfor %}
 
+{% for i in range(1, (postgres_cluster_replica_count | default(3)) + 1) %}
+  postgres_ha_node_{{ i }}:
+    build:
+      context: ./
+      dockerfile: ./Dockerfile.postgres
+    container_name: "postgres_ha_node_{{ i }}"
+    volumes:
+      - "{{ postgres_config_path }}/node_{{ i }}/patroni.yml:/etc/patroni/patroni.yml"
+      - "{{ postgres_certs_path }}/node_{{ i }}:/consul_certs/:ro"
+      - "postgres_ha_node_{{ i }}_data:/var/lib/postgresql/:rw"
+    depends_on:
+    - postgres_ha_load_balancer
+{% for i in range(1, (consul_cluster_replica_count | default(3)) + 1) %}
+    - "postgres_ha_consul_{{ i }}"
+{% endfor %}
+    networks:
+    - postgres_ha_network
+    restart: on-failure
+
+{% endfor %}
+
   postgres_ha_load_balancer:
     image: haproxy:2.7
     container_name: postgres_ha_load_balancer
@@ -34,6 +55,9 @@ services:
 volumes:
 {% for i in range(1, (consul_cluster_replica_count | default(3)) + 1) %}
   postgres_ha_consul_data_{{ i }}:
+{% endfor %}
+{% for i in range(1, (postgres_cluster_replica_count | default(3)) + 1) %}
+  postgres_ha_node_{{ i }}_data:
 {% endfor %}
 
 networks:

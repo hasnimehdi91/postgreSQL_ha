@@ -3,63 +3,62 @@
 # ------------------------------------------------------------------------------
 #
 # Base Image:
-#   - Rocky Linux 9.3 Minimal
+#   - Rocky Linux 9.3 (minimal)
 #
 # Purpose:
-#   - Used as a PostgreSQL node in a high availability (HA) cluster
-#   - Managed by Patroni using Consul as the distributed configuration store (DCS)
+#   - Builds a PostgreSQL node for high-availability clusters
+#   - Orchestrated by Patroni with Consul as the DCS (Distributed Configuration Store)
 #
-# Components:
-#   - PostgreSQL 17 (streaming replication ready)
-#   - Patroni (cluster orchestrator)
-#   - Python + pip (for Patroni installation)
+# Key Components:
+#   - PostgreSQL 17 with streaming replication
+#   - Patroni (installed via pip)
+#   - Python 3 (required by Patroni)
 #
 # Notes:
-#   - Entrypoint is left to Patroni — it controls PostgreSQL lifecycle
-#   - PGDATA must be writable and mounted in Compose/K8s
+#   - Entrypoint: Patroni manages PostgreSQL lifecycle
+#   - PGDATA must be mounted and writable at runtime
 # ------------------------------------------------------------------------------
 
 FROM rockylinux:9.3.20231119-minimal
+
 # ------------------------------------------------------------------------------
 # Environment Configuration
 # ------------------------------------------------------------------------------
 ENV PG_MAJOR=17
 ENV PGDATA=/var/lib/postgresql/data
 ENV PATH="/usr/pgsql-${PG_MAJOR}/bin:${PATH}"
-
+    
 # ------------------------------------------------------------------------------
-# System Setup: PostgreSQL, Python, Patroni
+# System Setup: Install PostgreSQL, Python, Patroni
 # ------------------------------------------------------------------------------
 RUN microdnf update -y && \
     microdnf install -y \
-        epel-release \
-        https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm && \
+        epel-release && \
+        rpm -i https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm && \
     microdnf module disable -y postgresql && \
     microdnf install -y \
         python3 python3-pip \
-        postgresql${PG_MAJOR}-server \
-        postgresql${PG_MAJOR}-contrib \
-        postgresql${PG_MAJOR} \
-        libpq && \
+        postgresql17-server \
+        postgresql17-contrib \
+        postgresql17 \
+        libpq python3-psycopg2 && \
     pip3 install --no-cache-dir --upgrade pip setuptools wheel && \
     pip3 install "patroni[consul]" && \
-    rm -rf /var/cache/yum /var/cache/dnf /var/lib/dnf/* /var/log/*
-
-# ------------------------------------------------------------------------------
-# Filesystem Preparation
-# ------------------------------------------------------------------------------
-RUN mkdir -p /etc/patroni /docker-entrypoint-initdb.d /var/lib/postgresql && \
+    rm -rf /var/cache/yum /var/cache/dnf /var/lib/dnf/* /var/log/* && \
+    mkdir -p /var/lib/postgresql/wal_archive && \
+    chown postgres:postgres /var/lib/postgresql/wal_archive && \
+    mkdir -p /etc/patroni /docker-entrypoint-initdb.d /var/lib/postgresql && \
     chmod -R 700 /var/lib/postgresql && \
     chown -R postgres:postgres /var/lib/postgresql
-
+    
 # ------------------------------------------------------------------------------
-# Switch to non-root user for execution
+# Switch to Non-Root User for PostgreSQL Runtime
 # ------------------------------------------------------------------------------
 USER postgres
 WORKDIR /var/lib/postgresql
-
-# ------------------------------------------------------------------------------
-# Default command: Patroni must be configured with mounted patroni.yml
-# ------------------------------------------------------------------------------
-CMD ["patroni", "/etc/patroni/patroni.yml"]
     
+# ------------------------------------------------------------------------------
+# Default Command
+# ------------------------------------------------------------------------------
+# Patroni requires a valid patroni.yml file mounted at /etc/patroni/patroni.yml
+CMD ["patroni", "/etc/patroni/patroni.yml"]    

@@ -1,0 +1,65 @@
+# code: language=ansible
+
+# ------------------------------------------------------------------------------
+# Set PostgreSQL Node Certificate Variables
+# ------------------------------------------------------------------------------
+# Defines the certificate name, common name, and subject alternative names (SANs)
+# for each PostgreSQL node in the high-availability cluster. These values are used
+# during the self-signed certificate generation process to ensure proper identity
+# validation for mTLS communication between nodes and Consul.
+- set_fact:
+    certificate_name: "postgres_node_{{ item }}"
+    certificate_common_name: postgres_ha_node_{{ item }}
+    certificate_subject_alt_name:
+    - "DNS:postgres_ha_node_{{ item }}"
+    - DNS:server.dc1.consul
+    - DNS:localhost
+    - IP:127.0.0.1
+  loop_control:
+    loop_var: item
+
+# ------------------------------------------------------------------------------
+# Generate Self-Signed TLS Certificates for PostgreSQL Node
+# ------------------------------------------------------------------------------
+# Includes a reusable task file that generates the private key, certificate signing
+# request (CSR), and self-signed certificate for each PostgreSQL node using the
+# variables defined above. This is required to enable secure mTLS connections.
+- include_tasks:
+    file: "{{ current_dir }}/tasks/security/generate_services_self_signed_certificate.yml"
+  loop_control:
+    loop_var: item
+
+# ------------------------------------------------------------------------------
+# Create Certificate Directory for Each PostgreSQL Node
+# ------------------------------------------------------------------------------
+# Creates a dedicated directory for each PostgreSQL node to store its TLS
+# certificates. The 'recurse' option ensures that the full directory path is created.
+- name: "Create postgres node {{ item }} certificates volume"
+  file:
+    path: "{{ postgres_certs_path }}/node_{{ item }}"
+    state: directory
+    recurse: true
+  loop_control:
+    loop_var: item
+
+# ------------------------------------------------------------------------------
+# Copy PostgreSQL Node Certificates to Designated Volume
+# ------------------------------------------------------------------------------
+# Copies the CA certificate, node-specific private key, and public certificate
+# into the corresponding PostgreSQL node's certificate directory. File permissions
+# are set to ensure secure read access for the PostgreSQL service.
+- name: Copy postgres node certificates
+  copy:
+    src: "{{ cert_file.src }}"
+    dest: "{{ cert_file.dest }}"
+    mode: "0644"
+  loop:
+    - src: "{{ ca_cert_path }}"
+      dest: "{{ postgres_certs_path }}/node_{{ item }}/ca.crt"
+    - src: "{{ sensitive_directory }}/{{ certificate_name }}.key"
+      dest: "{{ postgres_certs_path }}/node_{{ item }}/consul.key"
+    - src: "{{ sensitive_directory }}/{{ certificate_name }}.crt"
+      dest: "{{ postgres_certs_path }}/node_{{ item }}/consul.crt"
+  loop_control:
+    loop_var: cert_file
+    label: "{{ cert_file.src }} → {{ cert_file.dest }}"

@@ -64,3 +64,13 @@ stack_state: ""
 # - The value of `bootstrap_expect` in each server's configuration
 # - The peers used in retry_join for clustering
 consul_cluster_replica_count: 3
+
+# ------------------------------------------------------------------------------
+# PostgreSQL Cluster Replica Count
+# ------------------------------------------------------------------------------
+# Defines the number of PostgreSQL server nodes to deploy in the high-availability
+# PostgreSQL cluster managed by Patroni. This value determines:
+# - The number of PostgreSQL containers to start
+# - The quorum size for leader election
+# - The number of synchronous replicas and followers expected in the cluster
+postgres_cluster_replica_count: 3
