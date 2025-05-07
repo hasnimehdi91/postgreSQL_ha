@@ -41,6 +41,8 @@ services:
     container_name: postgres_ha_load_balancer
     ports:
     - "127.0.0.1:8500:8500"
+    - "127.0.0.1:43254:5432"
+    - "127.0.0.1:43354:5433"
     volumes:
       - "{{ haproxy_config_path }}/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
       - "{{ haproxy_certs_path }}/:/certs/:ro"

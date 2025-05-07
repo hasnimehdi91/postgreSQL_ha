@@ -17,6 +17,8 @@
 # Notes:
 #   - Entrypoint: Patroni manages PostgreSQL lifecycle
 #   - PGDATA must be mounted and writable at runtime
+#   - Includes a custom dynamic health check script for Consul
+#     to avoid duplicate /primary and /replica services on failover
 # ------------------------------------------------------------------------------
 
 FROM rockylinux:9.3.20231119-minimal
@@ -27,7 +29,7 @@ FROM rockylinux:9.3.20231119-minimal
 ENV PG_MAJOR=17
 ENV PGDATA=/var/lib/postgresql/data
 ENV PATH="/usr/pgsql-${PG_MAJOR}/bin:${PATH}"
-    
+
 # ------------------------------------------------------------------------------
 # System Setup: Install PostgreSQL, Python, Patroni
 # ------------------------------------------------------------------------------
@@ -50,15 +52,15 @@ RUN microdnf update -y && \
     mkdir -p /etc/patroni /docker-entrypoint-initdb.d /var/lib/postgresql && \
     chmod -R 700 /var/lib/postgresql && \
     chown -R postgres:postgres /var/lib/postgresql
-    
+
 # ------------------------------------------------------------------------------
 # Switch to Non-Root User for PostgreSQL Runtime
 # ------------------------------------------------------------------------------
 USER postgres
 WORKDIR /var/lib/postgresql
-    
+
 # ------------------------------------------------------------------------------
 # Default Command
 # ------------------------------------------------------------------------------
 # Patroni requires a valid patroni.yml file mounted at /etc/patroni/patroni.yml
-CMD ["patroni", "/etc/patroni/patroni.yml"]    
+CMD ["patroni", "/etc/patroni/patroni.yml"]

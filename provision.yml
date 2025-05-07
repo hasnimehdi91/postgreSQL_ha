@@ -95,4 +95,9 @@
       remove_images: local
       recreate: always
     ignore_errors: "{{ true if (stack_state == 'stopped' or stack_state == 'absent') else false }}"
-
+  
+  - name: Delete runtime directory
+    file:
+      path: "{{ workspace }}"
+      state: absent
+    when:  stack_state == 'absent'

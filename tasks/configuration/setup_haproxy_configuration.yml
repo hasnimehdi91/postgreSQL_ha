@@ -20,7 +20,7 @@
 # container to load frontend/backend definitions for proxying traffic to Consul nodes.
 - name: Copy haproxy configuration
   template:
-    src: "{{ current_dir }}/templates/haproxy/haproxy.cfg"
+    src: "{{ current_dir }}/templates/haproxy/haproxy.cfg.j2"
     dest: "{{ haproxy_config_path }}/haproxy.cfg"
     mode: "0644"
 
