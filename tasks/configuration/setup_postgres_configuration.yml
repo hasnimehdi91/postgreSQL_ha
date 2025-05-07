@@ -1,13 +1,43 @@
 # code: language=ansible
 
 # ------------------------------------------------------------------------------
-# Copy PostgreSQL Dockerfile
+# Copy PostgreSQL Container Build Files
 # ------------------------------------------------------------------------------
-# Copies the Dockerfile used to build the PostgreSQL 17 container image with
-# Patroni and Consul integration. The Dockerfile is placed in the target
-# container build directory to be used during image build or deployment steps.
-- name: Copy postgres docker file
+# Copies the Dockerfile and supporting scripts used to build the PostgreSQL 17
+# HA container image with Patroni and Consul support. These files are used
+# to build each PostgreSQL node image during deployment. The copied scripts include:
+#
+# - Dockerfile.postgres: Container definition
+# - entrypoint.sh: Launches Patroni and background PMM registration
+# - pmm_agent_registration.sh: Waits for metrics port and registers with PMM
+#
+# All files are copied into the container build directory.
+- name: Copy PostgreSQL container configuration and support scripts
   copy:
-    src: "{{ current_dir }}/files/containers/Dockerfile.postgres"
-    dest: "{{ containers_dir }}/Dockerfile.postgres"
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
     mode: "0644"
+  loop:
+    - src: "{{ current_dir }}/files/containers/Dockerfile.postgres"
+      dest: "{{ containers_dir }}/Dockerfile.postgres"
+    - src: "{{ current_dir }}/files/postgres/entrypoint.sh"
+      dest: "{{ containers_dir }}/entrypoint.sh"
+    - src: "{{ current_dir }}/files/postgres/pmm_agent_registration.sh"
+      dest: "{{ containers_dir }}/pmm_agent_registration.sh"
+
+# ------------------------------------------------------------------------------
+# Generate Environment Files for PostgreSQL HA Nodes
+# ------------------------------------------------------------------------------
+# Renders a set of .env files from the Jinja2 template, one per PostgreSQL HA node.
+# Each environment file contains the runtime variables used by the node, including:
+# - SERVICE_NAME
+# - PMM_SERVER_URL
+# - PMM_USERNAME
+# - PMM_PASSWORD
+#
+# These files are used in the Docker Compose definition to configure PMM integration.
+- name: Generate PostgreSQL HA node environment files
+  template:
+    src: "{{ current_dir }}/templates/postgres/node.env.j2"
+    dest: "{{ containers_dir }}/postgres_ha_node_{{ item }}.env"
+  loop: "{{ range(1, postgres_cluster_replica_count | default(3) + 1) | list }}"

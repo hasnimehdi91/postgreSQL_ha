@@ -13,12 +13,13 @@
 #   - PostgreSQL 17 with streaming replication
 #   - Patroni (installed via pip)
 #   - Python 3 (required by Patroni)
+#   - PMM Client for external exporter registration
 #
 # Notes:
 #   - Entrypoint: Patroni manages PostgreSQL lifecycle
 #   - PGDATA must be mounted and writable at runtime
 #   - Includes a custom dynamic health check script for Consul
-#     to avoid duplicate /primary and /replica services on failover
+#   - Registers itself to PMM via pmm_agent_registration.sh once metrics are live
 # ------------------------------------------------------------------------------
 
 FROM rockylinux:9.3.20231119-minimal
@@ -26,33 +27,55 @@ FROM rockylinux:9.3.20231119-minimal
 # ------------------------------------------------------------------------------
 # Environment Configuration
 # ------------------------------------------------------------------------------
+# Defines the PostgreSQL major version, data directory, and adjusts PATH
 ENV PG_MAJOR=17
 ENV PGDATA=/var/lib/postgresql/data
 ENV PATH="/usr/pgsql-${PG_MAJOR}/bin:${PATH}"
 
+# PMM registration variables (must be overridden via Docker/K8s at runtime)
+ENV SERVICE_NAME=""
+ENV PMM_SERVER_URL=""
+ENV PMM_USERNAME=""
+ENV PMM_PASSWORD=""
+ENV PORT=""
+    
 # ------------------------------------------------------------------------------
-# System Setup: Install PostgreSQL, Python, Patroni
+# Copy Scripts for Entry and PMM Agent Registration
+# ------------------------------------------------------------------------------
+# - pmm_agent_registration.sh: Waits for Patroni to expose metrics, then registers with PMM
+# - entrypoint.sh: Launches registration in background, then starts Patroni
+COPY pmm_agent_registration.sh /usr/local/bin/pmm_agent_registration.sh
+COPY entrypoint.sh /entrypoint.sh
+    
+# ------------------------------------------------------------------------------
+# System Setup: Install PostgreSQL, Python, Patroni, and PMM Client
 # ------------------------------------------------------------------------------
 RUN microdnf update -y && \
     microdnf install -y \
-        epel-release && \
-        rpm -i https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm && \
+    epel-release findutils && \
+    rpm -i https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm && \
+    rpm -i https://repo.percona.com/yum/percona-release-latest.noarch.rpm && \
+    percona-release enable pmm3-client && \
     microdnf module disable -y postgresql && \
     microdnf install -y \
         python3 python3-pip \
         postgresql17-server \
         postgresql17-contrib \
         postgresql17 \
-        libpq python3-psycopg2 && \
+        libpq python3-psycopg2 \
+        findutils nc pmm-client && \
     pip3 install --no-cache-dir --upgrade pip setuptools wheel && \
     pip3 install "patroni[consul]" && \
     rm -rf /var/cache/yum /var/cache/dnf /var/lib/dnf/* /var/log/* && \
     mkdir -p /var/lib/postgresql/wal_archive && \
+    mkdir -p /pmm-agent && chown -R postgres:postgres /pmm-agent && \
     chown postgres:postgres /var/lib/postgresql/wal_archive && \
     mkdir -p /etc/patroni /docker-entrypoint-initdb.d /var/lib/postgresql && \
     chmod -R 700 /var/lib/postgresql && \
-    chown -R postgres:postgres /var/lib/postgresql
-
+    chown -R postgres:postgres /var/lib/postgresql && \
+    chmod +x /usr/local/bin/pmm_agent_registration.sh && \
+    chmod +x /entrypoint.sh
+    
 # ------------------------------------------------------------------------------
 # Switch to Non-Root User for PostgreSQL Runtime
 # ------------------------------------------------------------------------------
@@ -60,7 +83,9 @@ USER postgres
 WORKDIR /var/lib/postgresql
 
 # ------------------------------------------------------------------------------
-# Default Command
+# Default Entrypoint for HA Node
 # ------------------------------------------------------------------------------
-# Patroni requires a valid patroni.yml file mounted at /etc/patroni/patroni.yml
-CMD ["patroni", "/etc/patroni/patroni.yml"]
+# Replaces the default CMD by using a custom entrypoint that:
+# - Launches pmm_agent_registration.sh in the background
+# - Starts Patroni as the primary managed process
+ENTRYPOINT ["/entrypoint.sh"]

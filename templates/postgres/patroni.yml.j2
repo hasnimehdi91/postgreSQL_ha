@@ -5,6 +5,14 @@ restapi:
     listen: 0.0.0.0:8008
     connect_address: postgres_ha_node_{{ item }}:8008
 
+metrics:
+    enabled: true
+    address: 0.0.0.0
+    port: 8008
+
+tags:
+    prometheus: "yes"
+
 consul:
     host: postgres_ha_load_balancer:8500
     scheme: https

@@ -25,8 +25,11 @@ services:
       - "{{ postgres_config_path }}/node_{{ i }}/patroni.yml:/etc/patroni/patroni.yml"
       - "{{ postgres_certs_path }}/node_{{ i }}:/consul_certs/:ro"
       - "postgres_ha_node_{{ i }}_data:/var/lib/postgresql/:rw"
+    env_file:
+      - "{{ containers_dir }}/postgres_ha_node_{{ i }}.env"
     depends_on:
     - postgres_ha_load_balancer
+    - postgres_ha_monitoring
 {% for i in range(1, (consul_cluster_replica_count | default(3)) + 1) %}
     - "postgres_ha_consul_{{ i }}"
 {% endfor %}
@@ -35,6 +38,17 @@ services:
     restart: on-failure
 
 {% endfor %}
+
+  postgres_ha_monitoring:
+    image: percona/pmm-server
+    container_name: postgres_ha_monitoring
+    ports:
+      - "127.0.0.1:4433:8443"
+    volumes:
+      - "{{ monitoring_config_path }}/dashboards/postgresql-patroni.json:/srv/grafana/plugins/pmm-app/dist/dashboards/Experimental/postgresql-patroni.json:ro"
+    networks:
+      - postgres_ha_network
+    restart: on-failure
 
   postgres_ha_load_balancer:
     image: haproxy:2.7

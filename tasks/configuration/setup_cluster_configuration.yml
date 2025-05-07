@@ -56,6 +56,19 @@
     file: "{{ current_dir }}/tasks/configuration/setup_haproxy_configuration.yml"
 
 # ------------------------------------------------------------------------------
+# Setup Grafana Configuration
+# ------------------------------------------------------------------------------
+# Includes the Grafana configuration setup tasks responsible for:
+#   - Copying dashboard and data source provisioning files
+#   - Downloading the PostgreSQL Patroni dashboard (ID 18870)
+#   - Preparing all required configuration directories and structure
+#
+# This task enables Grafana to auto-load monitoring dashboards and connect to
+# Prometheus securely on startup, providing visual insights into the HA cluster.
+- include_tasks:
+    file: "{{ current_dir }}/tasks/configuration/setup_grafana_configuration.yml"
+
+# ------------------------------------------------------------------------------
 # Generate Docker Compose Definition File
 # ------------------------------------------------------------------------------
 # This task renders the Docker Compose file using a Jinja2 template.

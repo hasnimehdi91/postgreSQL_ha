@@ -1,0 +1,40 @@
+# code: language=ansible
+
+# ------------------------------------------------------------------------------
+# Set Grafana Configuration Path for PMM
+# ------------------------------------------------------------------------------
+# Defines the path on the host system where Grafana configuration files,
+# dashboards, and provisioning settings are stored. This variable is reused
+# to construct consistent paths for dashboard import during PMM Grafana setup.
+- set_fact:
+    monitoring_config_path: "{{ containers_volume_dir }}/grafana/"
+
+# ------------------------------------------------------------------------------
+# Create Required Directories for PMM Grafana Dashboards
+# ------------------------------------------------------------------------------
+# Ensures the dashboard provisioning directory exists. This is required for
+# PMM to auto-load custom or external dashboards during Grafana container startup.
+# The 'recurse: true' flag ensures parent directories are also created.
+- name: Create grafana volumes
+  file:
+    path: "{{ monitoring_config_path }}/dashboards"
+    state: directory
+    recurse: true
+
+# ------------------------------------------------------------------------------
+# Download PostgreSQL Patroni Dashboard (ID: 18870) for PMM
+# ------------------------------------------------------------------------------
+# Downloads the official PostgreSQL Patroni dashboard from Grafana Labs
+# and places it into the Grafana dashboard directory. PMM's Grafana instance
+# is configured to automatically detect and import dashboard JSON files placed
+# in this location at startup.
+#
+# Dashboard ID 18870 corresponds to:
+# https://grafana.com/grafana/dashboards/18870-postgresql-patroni/
+#
+# This enables out-of-the-box visibility into Patroni cluster metrics via PMM.
+- name: Download grafana dashboard PostgreSQL Patroni
+  get_url:
+    url: https://grafana.com/api/dashboards/18870/revisions/1/download
+    dest: "{{ monitoring_config_path }}/dashboards/postgresql-patroni.json"
+    mode: "0644"
