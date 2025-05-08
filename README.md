@@ -57,7 +57,7 @@ This project has been thoroughly tested and verified on the following Enterprise
 ### 🔧 System Requirements
 - Docker Engine 24.0.0 or later
 - Docker Compose V2
-- Python 3.9 or later
+- Python 3.12 or later
 - make 
 - Sufficient system resources:
   - Minimum 4 CPU cores
