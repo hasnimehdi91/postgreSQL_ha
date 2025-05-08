@@ -2,15 +2,49 @@
 
 ## 📝 Overview
 
-This project implements a robust, production-grade PostgreSQL High Availability (HA) cluster using modern infrastructure components and best practices. The solution provides automatic failover, load balancing, and service discovery capabilities through a carefully orchestrated set of services:
+This project implements a robust, production-grade PostgreSQL High Availability (HA) cluster using modern infrastructure components including Patroni, Consul, HAProxy, and PMM (Percona Monitoring and Management) to provide resilient, auto-failover database operations with secure service discovery and real-time observability. Patroni manages PostgreSQL leader election across nodes, while Consul ensures dynamic service registration and propagates leader changes. HAProxy uses this service discovery to route write traffic to the current leader and read traffic to replicas, with exposed ports for database operations, Consul UI, and monitoring. PMM agents on each node collect metrics, which are centralized in a PMM server using Prometheus and visualized in Grafana. All inter-service communication is secured using mutual TLS (mTLS), enabling secure, automated, and observable failover handling.
 
-- **PostgreSQL Cluster**: Implements a multi-node PostgreSQL setup with automatic failover using Patroni
-- **Consul**: Provides service discovery, health checking, and distributed key-value store
-- **HAProxy**: Handles load balancing and request routing
-- **TLS Security**: Comprehensive TLS implementation for all inter-service communication
-- **Monitoring**: Integrated monitoring capabilities with Grafana dashboards
+<div align="center">
+<img src="images/PostgreSQL HA.jpg" alt="PostgreSQL HA Architecture" width="900" style="max-width: 100%; height: auto;">
+</div>
 
-The entire stack is containerized using Docker and orchestrated through Docker Compose, making it both portable and maintainable.
+### Architecture Components
+
+1. **PostgreSQL Cluster with Patroni**:
+   - Multi-node PostgreSQL setup (3+ nodes)
+   - Automated leader election and failover
+   - Synchronous/Asynchronous replication
+   - Automated backup management
+
+2. **Consul Service Mesh**:
+   - Distributed service discovery
+   - Health checking and monitoring
+   - Key-value store for cluster state
+   - ACL-based access control
+
+3. **HAProxy Load Balancer**:
+   - Dynamic service discovery via Consul
+   - Automatic primary/replica routing
+   - Connection pooling and load distribution
+   - SSL/TLS termination
+
+4. **Security Layer**:
+   - End-to-end TLS encryption
+   - Mutual TLS authentication
+   - Certificate management
+   - Secure secret distribution
+
+5. **PMM Monitoring**:
+   - Real-time performance monitoring
+   - Query analytics and profiling
+   - Resource utilization tracking
+   - Automated alerting
+
+The entire stack is containerized using Docker and orchestrated through Docker Compose, making it both portable and maintainable. The architecture ensures:
+- Zero-downtime failover
+- Consistent read/write splitting
+- Automated recovery procedures
+- Comprehensive monitoring and alerting
 
 ## 📋 Prerequisites
 
@@ -136,6 +170,13 @@ The project uses a Makefile to automate the setup process. Here are the availabl
   - Query Analytics
   - High-resolution metrics collection
   - Automated problem detection
+
+<div align="center">
+<img src="images/ha_postgres_monitoring_node2.png" alt="PMM PostgreSQL Monitoring" width="800" style="max-width: 100%; height: auto;">
+
+*PMM provides comprehensive monitoring of all PostgreSQL nodes*
+</div>
+
 - Metrics collection from:
   - PostgreSQL nodes performance
   - Replication lag monitoring
@@ -217,9 +258,54 @@ The provisioning process follows a structured approach:
    - Monitoring services are initialized
 
 ### 📈 Monitoring and Management
-- Access HAProxy stats page at `http://<host>:7000`
-- Monitor PostgreSQL cluster via Grafana at `http://<host>:3000`
+- Monitor PostgreSQL cluster via PMM at `http://<host>:3000`
 - Consul UI available at `http://<host>:8500`
+
+<div align="center">
+<img src="images/ha_postgres_monitoring_node1.png" alt="PMM PostgreSQL Monitoring" width="800" style="max-width: 100%; height: auto;">
+
+*PMM Dashboard showing detailed PostgreSQL node metrics and performance data*
+</div>
+
+<div align="center">
+<img src="images/ha_postgres_service_discovery.png" alt="Consul Service Discovery" width="800" style="max-width: 100%; height: auto;">
+
+*Consul UI displaying service discovery and health status of the PostgreSQL cluster*
+</div>
+
+### 🔄 Failover Testing
+
+The project includes an automated failover testing playbook (`test_failover.yml`) to verify the high availability functionality:
+
+```bash
+# Run the failover test
+ansible-playbook test_failover.yml
+```
+
+The test performs the following steps:
+
+1. **Leader Identification**:
+   - Identifies the current Patroni cluster leader
+   - Verifies cluster health before testing
+
+2. **Simulated Failure**:
+   - Stops the current leader container
+   - Monitors cluster state during transition
+
+3. **Failover Verification**:
+   - Confirms new leader election
+   - Verifies cluster continues to operate
+
+4. **Recovery Testing**:
+   - Restarts the original leader node
+   - Validates node rejoins as replica
+   - Ensures cluster returns to full strength
+
+This automated test helps verify:
+- Proper failover mechanism
+- Zero data loss during transitions
+- Automatic recovery procedures
+- Service discovery updates
 
 ## 🛡️ Security Considerations
 - All inter-service communication is encrypted using TLS
