@@ -233,18 +233,6 @@ The provisioning process follows a structured approach:
      - Dashboard provisioning
      - Alert rules
 
-3. **Service Deployment**:
-   ```bash
-   # Initialize the stack
-   ./activate.sh up
-
-   # Stop the stack
-   ./activate.sh down
-
-   # Destroy the stack and clean up
-   ./activate.sh destroy
-   ```
-
 ### Deployment Flow
 1. **Infrastructure Initialization**:
    - Security components are initialized
