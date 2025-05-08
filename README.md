@@ -246,8 +246,8 @@ The provisioning process follows a structured approach:
    - Monitoring services are initialized
 
 ### 📈 Monitoring and Management
-- Monitor PostgreSQL cluster via PMM at `http://<host>:3000`
-- Consul UI available at `http://<host>:8500`
+- Monitor PostgreSQL cluster via PMM at `https://<host>:8443`
+- Consul UI available at `https://<host>:8500`
 
 <div align="center">
 <img src="images/ha_postgres_monitoring_node1.png" alt="PMM PostgreSQL Monitoring" width="800" style="max-width: 100%; height: auto;">
