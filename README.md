@@ -279,7 +279,7 @@ The project includes an automated failover testing playbook (`test_failover.yml`
 
 ```bash
 # Run the failover test
-ansible-playbook test_failover.yml
+make test_failover
 ```
 
 The test performs the following steps:
