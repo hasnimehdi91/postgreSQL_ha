@@ -1,0 +1,259 @@
+# ------------------------------------------------------------------------------
+# Test PostgreSQL High Availability (HA) Failover Scenario
+# ------------------------------------------------------------------------------
+#
+# Description:
+#   This playbook performs a full failover test for a PostgreSQL High Availability
+#   cluster managed by Patroni. It identifies the current cluster leader, stops
+#   it to simulate a failure, waits for a new leader to be elected, then restarts
+#   the original leader and verifies its reintegration into the cluster.
+#
+# Execution Context:
+#   - Hosts: localhost (executed locally)
+#   - Connection: Local (no remote host required)
+#   - Privilege Escalation: Disabled (become: false)
+#   - Fact Gathering: Enabled
+#   - Error Handling: Fails immediately on any task error
+# ------------------------------------------------------------------------------
+- name: Test PostgreSQL High Availability (HA) failover
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: true
+  any_errors_fatal: yes
+
+  # ----------------------------------------------------------------------------
+  # Pre-Tasks: Load Configuration Variables
+  # ----------------------------------------------------------------------------
+  # Loads required variables such as `postgres_cluster_replica_count`
+  # and container node identifiers from the main configuration file.
+  pre_tasks:
+  - include_vars:
+      file: "./vars/main.yml"
+
+  tasks:
+
+  # ------------------------------------------------------------------------------
+  # Identify Current Patroni Cluster Leader
+  # ------------------------------------------------------------------------------
+  #
+  # Description:
+  #   Executes a command inside `postgres_ha_node_1` container using `patronictl`
+  #   to retrieve the current Patroni cluster leader. This step ensures we know
+  #   which node is actively managing the cluster prior to failover testing.
+  #
+  # Implementation Details:
+  #   - The command is executed with `docker exec` targeting the patroni configuration.
+  #   - The output is filtered using `awk` to extract the leader's name from the CLI table.
+  #
+  # Output:
+  #   - Stores the leader node's name in the `patroni_leader` variable for later use.
+  # ------------------------------------------------------------------------------
+  - name: Get Patroni leader node name
+    shell: 
+      cmd: docker exec -i postgres_ha_node_1 patronictl -c /etc/patroni/patroni.yml list 2>&1 | awk '/^\|/ && $0 ~ /Leader/ { print $2 }'
+    register: patroni_leader
+
+  # ------------------------------------------------------------------------------
+  # Register Patroni Cluster Leader as Fact
+  # ------------------------------------------------------------------------------
+  #
+  # Description:
+  #   Captures the leader node name retrieved from the previous task and registers it
+  #   as a new Ansible fact `current_leader` to enable reference in subsequent tasks.
+  #
+  # Input:
+  #   - Uses `patroni_leader.stdout` from the earlier command output.
+  #
+  # Output:
+  #   - Sets `current_leader` fact that persists throughout the playbook execution.
+  # ------------------------------------------------------------------------------
+  - set_fact:
+      current_leader: "{{ patroni_leader.stdout }}"
+
+  # ------------------------------------------------------------------------------
+  # Validate Presence of Patroni Cluster Leader
+  # ------------------------------------------------------------------------------
+  #
+  # Description:
+  #   Asserts that the Patroni leader has been successfully identified and
+  #   is non-empty. Ensures failover testing only proceeds with valid leader data.
+  #
+  # Validation Criteria:
+  #   - `patroni_leader` is defined.
+  #   - `patroni_leader` output is not an empty string.
+  #
+  # Outcome:
+  #   - Provides success or failure messaging depending on the evaluation.
+  # ------------------------------------------------------------------------------
+  - assert:
+      that:
+        - patroni_leader is defined
+        - patroni_leader != ''
+      success_msg: "Leader found {{ current_leader }}"
+      fail_msg: "Failed to extract the leader of the cluster"
+
+  # ------------------------------------------------------------------------------
+  # Generate Full List of Patroni Nodes
+  # ------------------------------------------------------------------------------
+  #
+  # Description:
+  #   Dynamically generates a list of Patroni node names based on the configured
+  #   PostgreSQL replica count. This list is essential for identifying participating
+  #   nodes in the HA cluster and for selecting candidates for failover simulation.
+  #
+  # Implementation Details:
+  #   - Uses the Ansible `sequence` lookup to build a numerical range.
+  #   - Applies regex transformation to generate node names like `postgres_ha_node_1`.
+  #
+  # Output:
+  #   - Sets the `all_nodes` fact containing the complete list of expected nodes.
+  # ------------------------------------------------------------------------------
+  - name: Generate full list of Patroni nodes
+    set_fact:
+      all_nodes: >-
+        {{ query('sequence', 'start=1 end=' ~ postgres_cluster_replica_count)
+          | map('regex_replace', '^(.*)$', 'postgres_ha_node_\1')
+          | list }}
+
+  # ------------------------------------------------------------------------------
+  # Select a Non-Leader Patroni Node
+  # ------------------------------------------------------------------------------
+  #
+  # Description:
+  #   Selects the first available Patroni node that is not the current leader.
+  #   This node is later used to monitor the new leader election during failover.
+  #
+  # Implementation Details:
+  #   - Uses `difference` filter to exclude the current leader from `all_nodes`.
+  #   - Selects the first available item from the resulting non-leader list.
+  #
+  # Output:
+  #   - Sets the `non_leader_node` fact for use in further cluster queries.
+  # ------------------------------------------------------------------------------
+  - name: Get a non-leader Patroni node
+    set_fact:
+      non_leader_node: "{{ (all_nodes | difference([current_leader]))[0] }}"
+
+  # ------------------------------------------------------------------------------
+  # Simulate Leader Failure by Stopping the Leader Node
+  # ------------------------------------------------------------------------------
+  #
+  # Description:
+  #   Stops the currently identified Patroni leader container to simulate a failure.
+  #   This initiates the failover process, allowing the cluster to elect a new leader.
+  #
+  # Implementation Details:
+  #   - Executes a `docker stop` command targeting the leader container by name.
+  #
+  # Outcome:
+  #   - The current leader is taken offline, triggering failover behavior.
+  # ------------------------------------------------------------------------------
+  - name: "Stop leader {{ current_leader }}"
+    shell:
+      cmd: docker stop {{ current_leader }}
+
+  # ------------------------------------------------------------------------------
+  # Wait for Patroni Leader Re-Election
+  # ------------------------------------------------------------------------------
+  #
+  # Description:
+  #   Polls the Patroni cluster from a non-leader node to detect when a new leader
+  #   has been elected. Ensures that the new leader is different from the previously
+  #   stopped node to confirm failover has occurred.
+  #
+  # Implementation Details:
+  #   - Uses `docker exec` to run `patronictl list` on a surviving node.
+  #   - Parses the command output using `awk` to identify the leader node name.
+  #   - Retries for a maximum of 10 attempts with a 5-second delay between retries.
+  #
+  # Output:
+  #   - Stores the new leader’s name in the `new_leader` variable.
+  # ------------------------------------------------------------------------------
+  - name: Wait for the new leader election
+    shell: >
+      docker exec -i {{ non_leader_node }} patronictl -c /etc/patroni/patroni.yml list 2>&1 | awk '/^\|/ && $0 ~ /Leader/ { print $2 }'
+    register: new_leader
+    retries: 10
+    delay: 5
+    until: new_leader.stdout is defined and new_leader.stdout != patroni_leader.stdout
+
+  # ------------------------------------------------------------------------------
+  # Register New Leader as a Fact
+  # ------------------------------------------------------------------------------
+  #
+  # Description:
+  #   Captures the newly elected Patroni leader’s name and registers it
+  #   as the `elected_leader` fact to enable reference in subsequent tasks.
+  #
+  # Input:
+  #   - Uses `new_leader.stdout` from the re-election check output.
+  #
+  # Output:
+  #   - Sets `elected_leader` fact that holds the newly promoted node's name.
+  # ------------------------------------------------------------------------------
+  - set_fact:
+      elected_leader: "{{ new_leader.stdout }}"
+
+  # ------------------------------------------------------------------------------
+  # Validate New Leader Election Success
+  # ------------------------------------------------------------------------------
+  #
+  # Description:
+  #   Validates that a new Patroni leader has been successfully elected and
+  #   that the result is non-empty. Prevents continuation if failover failed.
+  #
+  # Validation Criteria:
+  #   - `elected_leader` is defined.
+  #   - `elected_leader` is not an empty string.
+  #
+  # Outcome:
+  #   - Displays success or failure message based on leader validation.
+  # ------------------------------------------------------------------------------
+  - assert:
+      that:
+        - elected_leader is defined
+        - elected_leader != ''
+      success_msg: "New elected leader is {{ elected_leader }}"
+      fail_msg: "Cluster failed to elect a new leader"
+
+
+  # ------------------------------------------------------------------------------
+  # Restart Original Leader and Validate Reintegration
+  # ------------------------------------------------------------------------------
+  # Starts the previously stopped leader and validates its successful reintegration
+  # by comparing the number of active nodes with the expected replica count.
+  - name: "Rejoin {{ current_leader }} to the cluster"
+    shell:
+      cmd: docker start {{ current_leader }}
+
+  # ------------------------------------------------------------------------------
+  # Wait for Original Leader Node to Rejoin the Cluster
+  # ------------------------------------------------------------------------------
+  #
+  # Description:
+  #   Waits for the original leader node (previously stopped) to successfully rejoin
+  #   the Patroni cluster after being restarted. It verifies reintegration by counting
+  #   the number of active Patroni nodes visible to a running node.
+  #
+  # Implementation Details:
+  #   - Executes `patronictl list` from the `non_leader_node` container.
+  #   - Uses `awk` to extract the names of all participating nodes.
+  #   - Uses `wc -l` to count the number of nodes currently present in the cluster.
+  #   - Repeats the check with a delay and retry mechanism until the expected count is met.
+  #
+  # Validation Criteria:
+  #   - The number of detected nodes equals `postgres_cluster_replica_count`.
+  #
+  # Output:
+  #   - Stores the node count result in `cluster_nodes_count` for potential debugging.
+  # ------------------------------------------------------------------------------
+  - name: "Wait for {{ current_leader }} to rejoin"
+    shell: >
+      docker exec -i {{ non_leader_node }} patronictl -c /etc/patroni/patroni.yml list 2>&1 |
+      awk '/^\|/ && $0 ~ /postgres_ha_node_/ { print $2 }' | wc -l
+    register: cluster_nodes_count
+    retries: 10
+    delay: 5
+    until: cluster_nodes_count.stdout is defined and cluster_nodes_count.stdout | int == postgres_cluster_replica_count
+

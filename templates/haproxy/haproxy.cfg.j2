@@ -53,3 +53,15 @@ backend postgresql_replicas
     option tcp-check
     tcp-check connect
     server-template replica 5 _replica._tcp.postgres_ha_cluster.service.consul resolvers consul check
+
+# --- PMM SERVER (HTTPS) ---
+frontend pmm_frontend
+    bind *:8443
+    mode tcp
+    default_backend pmm_backend
+
+backend pmm_backend
+    mode tcp
+    option tcp-check
+    tcp-check connect
+    server pmm postgres_ha_monitoring:8443 check

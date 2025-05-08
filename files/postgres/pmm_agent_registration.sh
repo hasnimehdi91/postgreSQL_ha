@@ -55,7 +55,8 @@ pmm-agent setup \
     --server-username="${PMM_USERNAME}" \
     --server-password="${PMM_PASSWORD}" \
     --server-insecure-tls \
-    container container
+    --container-name="${SERVICE_NAME}" \
+    container container ${SERVICE_NAME} --force
 
 # Step 2: Start agent in background
 pmm-agent --config-file=/pmm-agent/pmm-agent.yaml &

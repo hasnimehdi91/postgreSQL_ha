@@ -68,6 +68,9 @@ check_virtual_env:
 provision: check_virtual_env
 	@pushd ${CONF_DIR_CONTEXT}/ && source ${VIRTUAL_ENV_DIR}/bin/activate && ansible-playbook provision.yml -e "stack_state=present"
 
+test_failover: check_virtual_env
+	@pushd ${CONF_DIR_CONTEXT}/ && source ${VIRTUAL_ENV_DIR}/bin/activate && ansible-playbook test_failover.yml
+
 # -----------------------------------
 # Target: stop
 # -----------------------------------

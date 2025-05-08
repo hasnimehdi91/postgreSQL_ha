@@ -69,6 +69,7 @@ RUN microdnf update -y && \
     rm -rf /var/cache/yum /var/cache/dnf /var/lib/dnf/* /var/log/* && \
     mkdir -p /var/lib/postgresql/wal_archive && \
     mkdir -p /pmm-agent && chown -R postgres:postgres /pmm-agent && \
+    mkdir -p /usr/local/percona/pmm && chown -R postgres:postgres /usr/local/percona/pmm && \
     chown postgres:postgres /var/lib/postgresql/wal_archive && \
     mkdir -p /etc/patroni /docker-entrypoint-initdb.d /var/lib/postgresql && \
     chmod -R 700 /var/lib/postgresql && \
